@@ -83,12 +83,14 @@ mirror_file() {
     mkdir -p "${dest}"
     local filename
     filename="$(basename "${url}")"
-    if [[ -f "${dest}/${filename}" && "${FORCE_DOWNLOAD:-}" != "1" ]]; then
+    if [[ -f "${dest}/${filename}" && -s "${dest}/${filename}" && "${FORCE_DOWNLOAD:-}" != "1" ]]; then
         log_info "Already mirrored: ${dest}/${filename}"
     else
         log_info "Downloading: ${url}"
-        wget --quiet --show-progress --directory-prefix="${dest}" \
-             --continue "${url}"
+        # Remove any 0-byte remnant from a previous failed download
+        [[ -f "${dest}/${filename}" ]] && ! [[ -s "${dest}/${filename}" ]] && rm -f "${dest}/${filename}"
+        wget --show-progress --directory-prefix="${dest}" \
+             --continue "${url}" || log_error "wget failed for ${url}"
     fi
     echo "${dest}/${filename}"
 }
