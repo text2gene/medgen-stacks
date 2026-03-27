@@ -1,8 +1,8 @@
 SHELL := /usr/bin/env bash
 
-.PHONY: all pubmed pubmed-oa clinvar setup help
+.PHONY: all pubmed pubmed-oa clinvar gene orphanet hpo setup help
 
-all: pubmed clinvar                 ## Load all implemented stacks
+all: pubmed clinvar gene orphanet hpo  ## Load all stacks
 
 setup:                              ## Check prerequisites and connection
 	@source bin/common.sh && \
@@ -18,6 +18,15 @@ pubmed-oa:                          ## PubMed Open Access subset only (no NLM cr
 
 clinvar:                            ## Full ClinVar stack (variant_summary + var_citations)
 	@$(MAKE) -C stacks/clinvar all
+
+gene:                               ## NCBI Entrez Gene (gene_info + gene2pubmed + gene_history)
+	@$(MAKE) -C stacks/gene all
+
+orphanet:                           ## Orphanet rare disease stack (disorders + gene associations)
+	@$(MAKE) -C stacks/orphanet all
+
+hpo:                                ## Human Phenotype Ontology (terms + disease/gene annotations)
+	@$(MAKE) -C stacks/hpo all
 
 help:                               ## Show this help
 	@echo "medgen-stacks — bash-first biomedical database loader"
