@@ -74,7 +74,10 @@ def load_variant_summary(conn, path: Path) -> int:
     batch = []
 
     with _open(path) as f:
-        reader = csv.DictReader(f, delimiter="\t")
+        # ClinVar headers start with '#' — strip it so field names match cleanly
+        first_line = f.readline().lstrip("#")
+        fieldnames = first_line.rstrip("\n").split("\t")
+        reader = csv.DictReader(f, fieldnames=fieldnames, delimiter="\t")
         for row in reader:
             if row.get("Assembly") != "GRCh38":
                 continue
