@@ -7,7 +7,7 @@ CREATE SCHEMA IF NOT EXISTS pubtator;
 -- Gene mentions in PubMed abstracts
 CREATE TABLE IF NOT EXISTS pubtator.gene_mention (
     pmid        BIGINT          NOT NULL,
-    gene_id     INTEGER         NOT NULL,
+    gene_id     BIGINT          NOT NULL,
     mentions    TEXT,
     resource    TEXT,
     PRIMARY KEY (pmid, gene_id)
