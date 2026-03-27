@@ -10,10 +10,11 @@
 source "$(dirname "$0")/../../bin/common.sh"
 require_commands wget
 
-HGNC_BASE="https://ftp.ebi.ac.uk/pub/databases/genenames/hgnc/tsv"
+# EBI FTP returns 404; use HGNC's Google Cloud Storage bucket instead
+HGNC_URL="https://storage.googleapis.com/public-download-files/hgnc/tsv/tsv/hgnc_complete_set.txt"
 
 log_info "Mirroring HGNC complete gene set..."
 
-mirror_file "${HGNC_BASE}/hgnc_complete_set.txt" hgnc
+mirror_file "${HGNC_URL}" hgnc
 
 log_ok "HGNC mirror complete → ${MEDGEN_MIRROR_DIR}/hgnc"
