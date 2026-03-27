@@ -78,8 +78,11 @@ def load_variant_summary(conn, path: Path) -> int:
         for row in reader:
             if row.get("Assembly") != "GRCh38":
                 continue
+            allele_id = _int_or_none(row.get("AlleleID", ""))
+            if allele_id is None:
+                continue
             batch.append((
-                _int_or_none(row.get("AlleleID", "")),
+                allele_id,
                 _int_or_none(row.get("VariationID", "")),
                 row.get("Name", "").strip() or None,
                 _int_or_none(row.get("GeneID", "")),
