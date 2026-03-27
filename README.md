@@ -16,7 +16,7 @@ handling the complex parsing where bash isn't the right tool.
 | `clinvar` | NCBI ClinVar FTP | ~500 MB | variant_summary + var_citations |
 | `gene` | NCBI Entrez Gene | ~1 GB | gene_info + gene2pubmed; human only |
 | `medgen` | NCBI MedGen FTP | ~400 MB | Disease concepts, synonyms, PubMed links |
-| `disgenet` | DisGeNET | ~100 MB | Gene-disease + variant-disease associations |
+| `disgenet` | DisGeNET | ~100 MB | Gene-disease + variant-disease associations; **requires free registration** |
 | `pubtator` | NCBI PubTator Central | ~2 GB | Text-mined gene/mutation mentions in PubMed |
 | `pubmed` | NLM MEDLINE baseline | ~25 GB compressed | NLM registration required; OA subset is open |
 
