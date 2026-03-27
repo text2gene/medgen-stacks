@@ -1,8 +1,8 @@
 SHELL := /usr/bin/env bash
 
-.PHONY: all pubmed pubmed-oa clinvar gene orphanet hpo setup help
+.PHONY: all pubmed pubmed-oa clinvar gene orphanet hpo hgnc medgen disgenet pubtator setup help
 
-all: pubmed clinvar gene orphanet hpo  ## Load all stacks
+all: hpo orphanet hgnc clinvar gene medgen disgenet pubtator pubmed  ## Load all stacks (smallest → largest)
 
 setup:                              ## Check prerequisites and connection
 	@source bin/common.sh && \
@@ -27,6 +27,18 @@ orphanet:                           ## Orphanet rare disease stack (disorders + 
 
 hpo:                                ## Human Phenotype Ontology (terms + disease/gene annotations)
 	@$(MAKE) -C stacks/hpo all
+
+hgnc:                               ## HGNC gene nomenclature (approved symbols + aliases)
+	@$(MAKE) -C stacks/hgnc all
+
+medgen:                             ## NCBI MedGen disease concepts + PubMed links
+	@$(MAKE) -C stacks/medgen all
+
+disgenet:                           ## DisGeNET gene-disease and variant-disease associations
+	@$(MAKE) -C stacks/disgenet all
+
+pubtator:                           ## PubTator text-mined gene/mutation mentions in PubMed
+	@$(MAKE) -C stacks/pubtator all
 
 help:                               ## Show this help
 	@echo "medgen-stacks — bash-first biomedical database loader"
