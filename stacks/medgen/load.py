@@ -35,9 +35,9 @@ def _int_or_none(val: str) -> int | None:
 
 
 # ── concepts ──────────────────────────────────────────────────────────────────
-# MGCONSO.RRF columns (pipe-delimited, no header):
-# 0:CUI 1:TS 2:LUI 3:STT 4:SUI 5:ISPREF 6:AUI 7:SAUI 8:SCUI 9:SDUI
-# 10:SAB 11:TTY 12:CODE 13:STR 14:SRL 15:SUPPRESS 16:CVF
+# MGCONSO.RRF columns (pipe-delimited, comment header line starting with #):
+# 0:CUI 1:TS 2:STT 3:ISPREF 4:AUI 5:SAUI 6:SCUI 7:SDUI
+# 8:SAB 9:TTY 10:CODE 11:STR 12:SUPPRESS
 
 CONCEPT_UPSERT = """
 INSERT INTO medgen.concept (cui, name, source, semantic_type)
@@ -71,14 +71,16 @@ def load_concepts(conn, path: Path) -> int:
 
     with _open(path) as f:
         for line in f:
+            if line.startswith("#"):
+                continue
             parts = line.rstrip("\n").split("|")
-            if len(parts) < 14:
+            if len(parts) < 12:
                 continue
 
             cui      = _str_or_none(parts[0])
-            ispref   = parts[5].strip()
-            sab      = _str_or_none(parts[10])
-            name     = _str_or_none(parts[13])
+            ispref   = parts[3].strip()
+            sab      = _str_or_none(parts[8])
+            name     = _str_or_none(parts[11])
 
             if not cui or not name:
                 continue
@@ -190,8 +192,8 @@ def load_relations(conn, path: Path) -> int:
 
 
 # ── pubmed ────────────────────────────────────────────────────────────────────
-# medgen_pubmed_lnk.txt.gz columns (tab-delimited, comment header):
-# #CUI | name | PMID
+# medgen_pubmed_lnk.txt.gz columns (pipe-delimited, comment header):
+# #UID | CUI | NAME | PMID |
 
 PUBMED_UPSERT = """
 INSERT INTO medgen.pubmed (cui, name, pmid)
@@ -216,13 +218,13 @@ def load_pubmed(conn, path: Path) -> int:
         for line in f:
             if line.startswith("#"):
                 continue
-            parts = line.rstrip("\n").split("\t")
-            if len(parts) < 3:
+            parts = line.rstrip("\n").split("|")
+            if len(parts) < 4:
                 continue
 
-            cui  = _str_or_none(parts[0])
-            name = _str_or_none(parts[1])
-            pmid = _int_or_none(parts[2])
+            cui  = _str_or_none(parts[1])
+            name = _str_or_none(parts[2])
+            pmid = _int_or_none(parts[3])
 
             if not cui or pmid is None:
                 continue
