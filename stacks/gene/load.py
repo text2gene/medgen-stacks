@@ -221,8 +221,8 @@ def load_history(conn, path: Path) -> int:
                 continue
 
             tax_id               = _int_or_none(row.get("tax_id", ""))
-            discontinued_gene_id = _int_or_none(row.get("discontinued_GeneID", ""))
-            discontinued_symbol  = _str_or_none(row.get("discontinued_Symbol", ""))
+            discontinued_gene_id = _int_or_none(row.get("Discontinued_GeneID", ""))
+            discontinued_symbol  = _str_or_none(row.get("Discontinued_Symbol", ""))
             current_gene_id      = _int_or_none(row.get("GeneID", ""))
 
             if discontinued_gene_id is None:
