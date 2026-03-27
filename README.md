@@ -12,9 +12,6 @@ handling the complex parsing where bash isn't the right tool.
 |-------|--------|------|-------|
 | `pubmed` | NLM MEDLINE baseline + updates | ~25 GB compressed | NLM registration required for full baseline; OA subset is open |
 | `clinvar` | NCBI ClinVar FTP | ~500 MB | No registration needed |
-| `gene` | NCBI Entrez Gene | ~1 GB | No registration needed |
-| `orphanet` | Orphanet XML | ~200 MB | No registration needed |
-| `hpo` | Human Phenotype Ontology | ~50 MB | No registration needed |
 
 Each stack is independent — install only what you need.
 
