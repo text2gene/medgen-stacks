@@ -87,6 +87,22 @@ def _extract_dois(html_fragment: str) -> list[str]:
     return [d.rstrip("\\.") for d in set(re_doi.findall(html_fragment))]
 
 
+def _extract_citation_texts(html_fragment: str) -> list[str]:
+    """Extract citation strings from LOVD custom_link spans and tooltips.
+
+    LOVD renders references as <SPAN class="custom_link">Author et al 2008</SPAN>
+    with a tooltip containing the full link. The visible text is always present
+    even when the tooltip isn't, so we grab it from there.
+    """
+    texts = set()
+    # Visible text inside custom_link spans
+    for m in re.finditer(r'custom_link[^>]*>([^<]+)', html_fragment):
+        text = m.group(1).strip()
+        if text and text != "-" and len(text) > 3:
+            texts.add(text)
+    return list(texts)
+
+
 def parse_variant_page(html: str, gene: str) -> tuple[list[str], list[dict]]:
     """
     Parse an LOVD variant view page into variant records with all available fields.
@@ -132,7 +148,8 @@ def parse_variant_page(html: str, gene: str) -> tuple[list[str], list[dict]]:
             # Store the clean text value
             record[fname] = text if text else None
 
-            # Extract references from any column that contains them
+            # Extract only clean PMIDs and DOIs — everything else stays in
+            # all_fields JSONB and raw_row_html for later mining
             pmids = _extract_pmids(cell_html)
             if pmids:
                 record["pmids"].extend(pmids)
@@ -140,9 +157,13 @@ def parse_variant_page(html: str, gene: str) -> tuple[list[str], list[dict]]:
             if dois:
                 record["dois"].extend(dois)
 
-        # Deduplicate refs
+        # Deduplicate clean refs only
         record["pmids"] = list(set(record["pmids"]))
         record["dois"] = list(set(record["dois"]))
+
+        # Stash the raw HTML row for future re-parsing (reference resolution,
+        # citation text extraction, etc.)
+        record["raw_row_html"] = row_html
 
         # Derive standard fields
         cdna = record.get("VariantOnTranscript/DNA") or record.get("VariantOnGenome/DNA")
@@ -183,6 +204,7 @@ CREATE TABLE IF NOT EXISTS lovd.variant (
     source_host   TEXT NOT NULL,
     source_url    TEXT NOT NULL,
     all_fields    JSONB,
+    raw_data      JSONB,
     harvested_at  DATE NOT NULL,
     UNIQUE (gene, hgvs_cdna, source_host)
 );
@@ -214,8 +236,8 @@ CREATE INDEX IF NOT EXISTS lovd_variant_ref_pmid_idx ON lovd.variant_ref (ref_id
 
 UPSERT_VARIANT = """
 INSERT INTO lovd.variant (gene, hgvs_cdna, hgvs_full, hgvs_protein, transcript,
-    exon, dbsnp, lovd_dbid, effect, owner, source_host, source_url, all_fields, harvested_at)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    exon, dbsnp, lovd_dbid, effect, owner, source_host, source_url, all_fields, raw_data, harvested_at)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 ON CONFLICT (gene, hgvs_cdna, source_host) DO UPDATE SET
     hgvs_full = EXCLUDED.hgvs_full,
     hgvs_protein = EXCLUDED.hgvs_protein,
@@ -227,6 +249,7 @@ ON CONFLICT (gene, hgvs_cdna, source_host) DO UPDATE SET
     owner = EXCLUDED.owner,
     source_url = EXCLUDED.source_url,
     all_fields = EXCLUDED.all_fields,
+    raw_data = EXCLUDED.raw_data,
     harvested_at = EXCLUDED.harvested_at
 """
 
@@ -260,24 +283,39 @@ def load_variants(conn, gene: str, host: str, url: str,
     total_refs = 0
     with conn.cursor() as cur:
         for v in variants:
-            # Build the all_fields JSON — exclude derived keys and large lists
+            # all_fields: clean parsed values (no HTML, no derived keys)
             all_fields = {k: v2 for k, v2 in v.items()
                          if k not in ("gene", "transcript", "pmids", "dois",
+                                      "citations", "raw_row_html",
                                       "hgvs_cdna", "hgvs_full", "hgvs_protein",
                                       "dbsnp", "lovd_dbid", "exon", "effect", "owner")
                          and v2 is not None}
+
+            # raw_data: everything including raw HTML for future re-parsing
+            # This is the "lose nothing" store — messy citation text, tooltip HTML,
+            # reference column content can all be mined later
+            raw_data = {
+                "row_html": v.get("raw_row_html", ""),
+                "pmids": v.get("pmids", []),
+                "dois": v.get("dois", []),
+                "citations": v.get("citations", []),
+            }
 
             cur.execute(UPSERT_VARIANT, (
                 gene, v["hgvs_cdna"], v["hgvs_full"], v.get("hgvs_protein"),
                 v.get("transcript"), v.get("exon"), v.get("dbsnp"),
                 v.get("lovd_dbid"), v.get("effect"), v.get("owner"),
-                host, url, json.dumps(all_fields), today,
+                host, url, json.dumps(all_fields), json.dumps(raw_data), today,
             ))
-            for pmid in v["pmids"]:
+            # PMIDs, DOIs, and citation texts go into variant_ref
+            for pmid in v.get("pmids", []):
                 cur.execute(UPSERT_REF, (gene, v["hgvs_cdna"], host, "pmid", str(pmid)))
                 total_refs += 1
-            for doi in v["dois"]:
+            for doi in v.get("dois", []):
                 cur.execute(UPSERT_REF, (gene, v["hgvs_cdna"], host, "doi", doi))
+                total_refs += 1
+            for cite in v.get("citations", []):
+                cur.execute(UPSERT_REF, (gene, v["hgvs_cdna"], host, "citation", cite))
                 total_refs += 1
 
         cur.execute(LOG_HARVEST, (gene, host, len(variants), total_refs, columns, None))
