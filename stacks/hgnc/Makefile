@@ -1,13 +1,13 @@
 SHELL := /usr/bin/env bash
 STACK_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-HGNC_BASE := https://ftp.ebi.ac.uk/pub/databases/genenames/hgnc/tsv
+HGNC_BASE := https://storage.googleapis.com/public-download-files/hgnc/tsv/tsv
 
 .PHONY: all mirror schema load index clean help
 
 all: mirror schema load index
 
-mirror:                         ## Download HGNC complete gene set from EBI FTP
+mirror:                         ## Download HGNC complete gene set from Google Cloud Storage
 	@source $(STACK_DIR)../../bin/common.sh && \
 	    log_info "Mirroring HGNC..." && \
 	    mirror_file $(HGNC_BASE)/hgnc_complete_set.txt hgnc && \
