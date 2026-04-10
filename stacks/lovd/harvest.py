@@ -394,14 +394,37 @@ def main():
           f"at {SLEEP_PER_HOST}s/host with {len(hosts)}-way fan-out")
 
     last_request: dict[str, float] = {}
+    host_ok: dict[str, int] = defaultdict(int)
+    host_err: dict[str, int] = defaultdict(int)
+    abandoned_hosts: set[str] = set()
     total_variants = 0
     total_refs = 0
     errors = 0
     completed = 0
 
+    # Give up on a host after this many consecutive errors with zero successes,
+    # or when the error rate exceeds this threshold after a minimum sample.
+    ABANDON_AFTER_CONSECUTIVE = 5
+    ABANDON_ERROR_RATE = 0.9   # 90% errors after at least 5 attempts
+    MIN_ATTEMPTS_FOR_RATE = 5
+
+    def _should_abandon(host: str) -> bool:
+        ok = host_ok[host]
+        err = host_err[host]
+        total = ok + err
+        # Never got a single success and hit the consecutive limit
+        if ok == 0 and err >= ABANDON_AFTER_CONSECUTIVE:
+            return True
+        # High error rate after enough attempts
+        if total >= MIN_ATTEMPTS_FOR_RATE and err / total >= ABANDON_ERROR_RATE:
+            return True
+        return False
+
     while any(by_host[h] for h in hosts):
         for host in hosts:
             if not by_host[host]:
+                continue
+            if host in abandoned_hosts:
                 continue
 
             now = time.monotonic()
@@ -420,6 +443,7 @@ def main():
                 total_variants += len(variants)
                 total_refs += n_refs
                 completed += 1
+                host_ok[host] += 1
 
                 if completed % 10 == 0 or len(variants) > 50:
                     print(f"  [{completed}/{len(work)}] {host}/{gene}: "
@@ -430,12 +454,23 @@ def main():
                 print(f"  [{completed}/{len(work)}] {host}/{gene}: HTTP {e.code}", flush=True)
                 log_error(conn, gene, host, f"HTTP {e.code}")
                 errors += 1
+                host_err[host] += 1
             except Exception as e:
                 print(f"  [{completed}/{len(work)}] {host}/{gene}: {e}", flush=True)
                 log_error(conn, gene, host, str(e)[:200])
                 errors += 1
+                host_err[host] += 1
 
             last_request[host] = time.monotonic()
+
+            # Check if this host should be abandoned
+            if _should_abandon(host):
+                remaining = len(by_host[host])
+                abandoned_hosts.add(host)
+                print(f"  *** Abandoning {host} — "
+                      f"{host_ok[host]} ok, {host_err[host]} errors. "
+                      f"Skipping {remaining} remaining genes.", flush=True)
+                by_host[host].clear()
 
     conn.close()
     print(f"\nDone. {completed} genes, {total_variants} variants, "
