@@ -92,12 +92,22 @@ def main():
 
     conn = pg.connect()
 
-    # Set up resolver
-    db_url = f"postgresql://{conn.info.user}:{conn.info.password}@{conn.info.host}:{conn.info.port}/{conn.info.dbname}"
+    # Set up resolver — build URL from env vars (same ones pg.connect() uses)
+    import os
+    db_url = "postgresql://{user}:{password}@{host}:{port}/{db}".format(
+        user=os.environ.get("PGUSER", "medgen"),
+        password=os.environ.get("PGPASSWORD", "medgen"),
+        host=os.environ.get("PGHOST", "127.0.0.1"),
+        port=os.environ.get("PGPORT", "5432"),
+        db=os.environ.get("PGDATABASE", "medgen"),
+    )
+    print(f"Resolver DB: {db_url.replace(os.environ.get('PGPASSWORD',''), '***')}", flush=True)
     resolver = CitationResolver(db_url=db_url)
+    print("Resolver ready", flush=True)
 
+    print("Connecting to DB...", flush=True)
     rows = get_unresolved(conn, gene_filter)
-    print(f"Found {len(rows)} variants with unresolved citations")
+    print(f"Found {len(rows)} variants with unresolved citations", flush=True)
 
     # Deduplicate: many variants share the same citation text
     # Resolve unique texts once, then apply to all variants
@@ -127,16 +137,9 @@ def main():
 
         found_pmids = []
         for cite in citations:
-            result = resolver._resolve_one(cite, gene=gene)
+            result = resolver._resolve_one(cite, gene=gene, use_crossref=use_crossref)
             if result and result.get("pmid"):
                 found_pmids.append(result)
-
-        if not found_pmids and use_crossref:
-            # CrossRef fallback — slower, use sparingly
-            for cite in citations:
-                result = resolver._resolve_one(cite, gene=gene)
-                if result and result.get("pmid"):
-                    found_pmids.append(result)
 
         if found_pmids:
             resolved += 1
