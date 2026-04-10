@@ -369,14 +369,31 @@ def main():
             continue
         work.append((gene, url, host))
 
-    # Filter already-harvested
+    # Filter already-harvested and recently-failed DNS hosts
     if not refresh:
         with conn.cursor() as cur:
             cur.execute("SELECT gene, source_host FROM lovd.harvest_log WHERE error IS NULL")
             done = {(r[0], r[1]) for r in cur.fetchall()}
+
+            # Hosts where every attempt today was a DNS failure — skip entirely
+            cur.execute("""
+                SELECT DISTINCT source_host FROM lovd.harvest_log
+                WHERE error LIKE '%%Name or service%%'
+                  AND harvested_at > NOW() - INTERVAL '1 day'
+                  AND source_host NOT IN (
+                    SELECT source_host FROM lovd.harvest_log
+                    WHERE error IS NULL AND harvested_at > NOW() - INTERVAL '1 day'
+                  )
+            """)
+            dns_failed_today = {r[0] for r in cur.fetchall()}
+
         before = len(work)
-        work = [(g, u, h) for g, u, h in work if (g, h) not in done]
-        print(f"Skipping {before - len(work)} already-harvested gene/host pairs")
+        work = [(g, u, h) for g, u, h in work if (g, h) not in done and h not in dns_failed_today]
+        skipped_done = before - len(work) - sum(1 for g, u, h in work if h in dns_failed_today)
+        if dns_failed_today:
+            print(f"Skipping {len(dns_failed_today)} hosts with DNS failures in the last 24h: "
+                  f"{', '.join(sorted(dns_failed_today))}")
+        print(f"Skipping {before - len(work)} already-harvested/DNS-failed gene/host pairs")
 
     # Group by host and round-robin
     by_host: dict[str, deque] = defaultdict(deque)
